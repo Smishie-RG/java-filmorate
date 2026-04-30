@@ -12,25 +12,30 @@ import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.User;
 
 import java.time.LocalDate;
-import java.util.Collection;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @RestController
 @RequestMapping("/users")
 public class UserController {
-    private final Map<Long, User> users = new HashMap<>();
+    private final Map<Long, User> users = new ConcurrentHashMap<>();
+    private final AtomicLong counter = new AtomicLong();
 
     @GetMapping
-    public Collection<User> findAll() {
-        return users.values();
+    public List<User> findAll() {
+        List<User> result = new ArrayList<>(users.values());
+        result.sort(Comparator.comparing(User::getId));
+        return result;
     }
 
     @PostMapping
     public User create(@RequestBody User user) {
         validate(user);
-        fillNameIfEmpty(user);
 
         user.setId(getNextId());
         users.put(user.getId(), user);
@@ -42,27 +47,29 @@ public class UserController {
     @PutMapping
     public User update(@RequestBody User newUser) {
         validate(newUser);
-        fillNameIfEmpty(newUser);
 
         if (newUser.getId() == null) {
             log.warn("Ошибка обновления пользователя: id не указан");
             throw new ValidationException("Id должен быть указан");
         }
 
-        User oldUser = users.get(newUser.getId());
-
-        if (oldUser == null) {
+        if (!users.containsKey(newUser.getId())) {
             log.warn("Ошибка обновления пользователя: пользователь с id = {} не найден", newUser.getId());
             throw new NotFoundException("Пользователь с id = " + newUser.getId() + " не найден");
         }
 
-        oldUser.setEmail(newUser.getEmail());
-        oldUser.setLogin(newUser.getLogin());
-        oldUser.setName(newUser.getName());
-        oldUser.setBirthday(newUser.getBirthday());
+        User updatedUser = new User(
+                newUser.getEmail(),
+                newUser.getLogin(),
+                newUser.getName(),
+                newUser.getBirthday()
+        );
+        updatedUser.setId(newUser.getId());
 
-        log.info("Обновлён пользователь: {}", oldUser);
-        return oldUser;
+        users.put(updatedUser.getId(), updatedUser);
+
+        log.info("Обновлён пользователь: {}", updatedUser);
+        return updatedUser;
     }
 
     private void validate(User user) {
@@ -87,18 +94,7 @@ public class UserController {
         }
     }
 
-    private void fillNameIfEmpty(User user) {
-        if (user.getName() == null || user.getName().isBlank()) {
-            user.setName(user.getLogin());
-        }
-    }
-
     private long getNextId() {
-        long currentMaxId = users.keySet()
-                .stream()
-                .mapToLong(id -> id)
-                .max()
-                .orElse(0);
-        return ++currentMaxId;
+        return counter.incrementAndGet();
     }
 }

@@ -12,9 +12,12 @@ import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
 
 import java.time.LocalDate;
-import java.util.Collection;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @RestController
@@ -22,11 +25,14 @@ import java.util.Map;
 public class FilmController {
     private static final LocalDate MIN_RELEASE_DATE = LocalDate.of(1895, 12, 28);
 
-    private final Map<Long, Film> films = new HashMap<>();
+    private final Map<Long, Film> films = new ConcurrentHashMap<>();
+    private final AtomicLong counter = new AtomicLong();
 
     @GetMapping
-    public Collection<Film> findAll() {
-        return films.values();
+    public List<Film> findAll() {
+        List<Film> result = new ArrayList<>(films.values());
+        result.sort(Comparator.comparing(Film::getId));
+        return result;
     }
 
     @PostMapping
@@ -49,20 +55,23 @@ public class FilmController {
             throw new ValidationException("Id должен быть указан");
         }
 
-        Film oldFilm = films.get(newFilm.getId());
-
-        if (oldFilm == null) {
+        if (!films.containsKey(newFilm.getId())) {
             log.warn("Ошибка обновления фильма: фильм с id = {} не найден", newFilm.getId());
             throw new NotFoundException("Фильм с id = " + newFilm.getId() + " не найден");
         }
 
-        oldFilm.setName(newFilm.getName());
-        oldFilm.setDescription(newFilm.getDescription());
-        oldFilm.setReleaseDate(newFilm.getReleaseDate());
-        oldFilm.setDuration(newFilm.getDuration());
+        Film updatedFilm = new Film(
+                newFilm.getName(),
+                newFilm.getDescription(),
+                newFilm.getReleaseDate(),
+                newFilm.getDuration()
+        );
+        updatedFilm.setId(newFilm.getId());
 
-        log.info("Обновлён фильм: {}", oldFilm);
-        return oldFilm;
+        films.put(updatedFilm.getId(), updatedFilm);
+
+        log.info("Обновлён фильм: {}", updatedFilm);
+        return updatedFilm;
     }
 
     private void validate(Film film) {
@@ -93,11 +102,6 @@ public class FilmController {
     }
 
     private long getNextId() {
-        long currentMaxId = films.keySet()
-                .stream()
-                .mapToLong(id -> id)
-                .max()
-                .orElse(0);
-        return ++currentMaxId;
+        return counter.incrementAndGet();
     }
 }
