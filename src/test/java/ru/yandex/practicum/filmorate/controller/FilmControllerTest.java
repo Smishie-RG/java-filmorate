@@ -9,6 +9,8 @@ import ru.yandex.practicum.filmorate.storage.film.InMemoryFilmStorage;
 import ru.yandex.practicum.filmorate.storage.user.InMemoryUserStorage;
 import java.time.LocalDate;
 import java.util.List;
+import ru.yandex.practicum.filmorate.model.User;
+import ru.yandex.practicum.filmorate.storage.user.InMemoryUserStorage;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -69,11 +71,29 @@ class FilmControllerTest {
 
     @Test
     void shouldAddLike() {
-        Film film = controller.create(makeValidFilm());
+        InMemoryUserStorage userStorage = new InMemoryUserStorage();
 
-        controller.addLike(film.getId(), 1L);
+        User user = new User(
+                "user@mail.ru",
+                "login",
+                "name",
+                LocalDate.of(2000, 1, 1)
+        );
 
-        List<Film> popular = controller.popular(1);
+        userStorage.create(user);
+
+        FilmController filmController = new FilmController(
+                new FilmService(
+                        new InMemoryFilmStorage(),
+                        userStorage
+                )
+        );
+
+        Film film = filmController.create(makeValidFilm());
+
+        filmController.addLike(film.getId(), user.getId());
+
+        List<Film> popular = filmController.popular(1);
 
         assertEquals(1, popular.size());
         assertEquals(film.getId(), popular.get(0).getId());
@@ -81,14 +101,32 @@ class FilmControllerTest {
 
     @Test
     void shouldRemoveLike() {
-        Film film = controller.create(makeValidFilm());
+        InMemoryUserStorage userStorage = new InMemoryUserStorage();
 
-        controller.addLike(film.getId(), 1L);
-        controller.removeLike(film.getId(), 1L);
+        User user = new User(
+                "user@mail.ru",
+                "login",
+                "name",
+                LocalDate.of(2000, 1, 1)
+        );
 
-        List<Film> popular = controller.popular(1);
+        userStorage.create(user);
 
-        assertEquals(0, popular.size());
+        FilmController filmController = new FilmController(
+                new FilmService(
+                        new InMemoryFilmStorage(),
+                        userStorage
+                )
+        );
+
+        Film film = filmController.create(makeValidFilm());
+
+        filmController.addLike(film.getId(), user.getId());
+        filmController.removeLike(film.getId(), user.getId());
+
+        List<Film> popular = filmController.popular(1);
+
+        assertEquals(1, popular.size());
     }
 
     private Film makeValidFilm() {
