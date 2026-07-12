@@ -1,113 +1,207 @@
 package ru.yandex.practicum.filmorate.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import ru.yandex.practicum.filmorate.exception.NotFoundException;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 import ru.yandex.practicum.filmorate.model.User;
-import ru.yandex.practicum.filmorate.service.UserService;
-import ru.yandex.practicum.filmorate.storage.user.InMemoryUserStorage;
+import ru.yandex.practicum.filmorate.storage.film.FilmStorage;
+import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.time.LocalDate;
-import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 class UserControllerTest {
 
-    private final UserController controller = new UserController(
-            new UserService(new InMemoryUserStorage())
-    );
+    @Autowired
+    private MockMvc mockMvc;
 
-    @Test
-    void shouldCreateUser() {
-        User user = makeValidUser();
+    @Autowired
+    private ObjectMapper objectMapper;
 
-        User created = controller.create(user);
+    @Autowired
+    private FilmStorage filmStorage;
 
-        assertEquals(1L, created.getId());
+    @Autowired
+    private UserStorage userStorage;
+
+    @BeforeEach
+    void clearStorage() {
+        filmStorage.findAll().forEach(film -> filmStorage.delete(film.getId()));
+        userStorage.findAll().forEach(user -> userStorage.delete(user.getId()));
     }
 
     @Test
-    void shouldFindAllUsers() {
-        controller.create(makeValidUser());
-        controller.create(new User("second@mail.ru", "second", "Second",
-                LocalDate.of(1995, 5, 5)));
-
-        List<User> users = controller.findAll();
-
-        assertEquals(2, users.size());
-    }
-
-    @Test
-    void shouldUpdateUser() {
-        User user = controller.create(makeValidUser());
-
-        User updated = new User(
-                "mail@yandex.ru",
-                "login2",
-                "name2",
-                LocalDate.of(1990, 1, 1)
-        );
-        updated.setId(user.getId());
-
-        User result = controller.update(updated);
-
-        assertEquals("mail@yandex.ru", result.getEmail());
-    }
-
-    @Test
-    void shouldAddAndGetFriends() {
-        User u1 = controller.create(makeValidUser());
-        User u2 = controller.create(new User(
-                "u2@mail.ru", "u2", "U2", LocalDate.of(2000, 1, 1)
-        ));
-
-        controller.addFriend(u1.getId(), u2.getId());
-
-        List<User> friends = controller.getFriends(u1.getId());
-
-        assertEquals(1, friends.size());
-    }
-
-    @Test
-    void shouldGetCommonFriends() {
-        User u1 = controller.create(makeValidUser());
-        User u2 = controller.create(new User("u2@mail.ru", "u2", "U2", LocalDate.of(2000, 1, 1)));
-        User u3 = controller.create(new User("u3@mail.ru", "u3", "U3", LocalDate.of(2000, 1, 1)));
-
-        controller.addFriend(u1.getId(), u3.getId());
-        controller.addFriend(u2.getId(), u3.getId());
-
-        List<User> common = controller.getCommonFriends(u1.getId(), u2.getId());
-
-        assertEquals(1, common.size());
-    }
-
-    @Test
-    void shouldRemoveFriend() {
-        User u1 = controller.create(makeValidUser());
-        User u2 = controller.create(new User("u2@mail.ru", "u2", "U2", LocalDate.of(2000, 1, 1)));
-
-        controller.addFriend(u1.getId(), u2.getId());
-        controller.removeFriend(u1.getId(), u2.getId());
-
-        List<User> friends = controller.getFriends(u1.getId());
-
-        assertEquals(0, friends.size());
-    }
-
-    @Test
-    void shouldThrowWhenUserNotFound() {
-        assertThrows(NotFoundException.class,
-                () -> controller.findById(999L));
-    }
-
-    private User makeValidUser() {
-        return new User(
+    void shouldCreateUserAndUseLoginAsName() throws Exception {
+        User user = new User(
                 "user@mail.ru",
                 "login",
-                "name",
+                "",
+                LocalDate.of(2000, 1, 1)
+        );
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("user@mail.ru"))
+                .andExpect(jsonPath("$.name").value("login"));
+    }
+
+    @Test
+    void shouldFindAllUsers() throws Exception {
+        createUser(makeValidUser("first@mail.ru", "first", "First"));
+        createUser(makeValidUser("second@mail.ru", "second", "Second"));
+
+        mockMvc.perform(get("/users"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    void shouldUpdateUser() throws Exception {
+        long userId = createUser(makeValidUser("first@mail.ru", "first", "First"));
+        User updatedUser = makeValidUser("updated@mail.ru", "updated", "Updated");
+        updatedUser.setId(userId);
+
+        mockMvc.perform(put("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updatedUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId))
+                .andExpect(jsonPath("$.email").value("updated@mail.ru"));
+    }
+
+    @Test
+    void shouldReturnBadRequestForInvalidUser() throws Exception {
+        User invalidUser = new User(
+                "invalid-email",
+                "invalid login",
+                "Name",
+                LocalDate.now().plusDays(1)
+        );
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidUser)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenUserDoesNotExist() throws Exception {
+        mockMvc.perform(get("/users/{id}", 999999L))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldAddFriendForBothUsers() throws Exception {
+        long firstUserId = createUser(makeValidUser("first@mail.ru", "first", "First"));
+        long secondUserId = createUser(makeValidUser("second@mail.ru", "second", "Second"));
+
+        mockMvc.perform(put("/users/{id}/friends/{friendId}", firstUserId, secondUserId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/users/{id}/friends", firstUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(secondUserId));
+
+        mockMvc.perform(get("/users/{id}/friends", secondUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(firstUserId));
+    }
+
+    @Test
+    void shouldGetCommonFriends() throws Exception {
+        long firstUserId = createUser(makeValidUser("first@mail.ru", "first", "First"));
+        long secondUserId = createUser(makeValidUser("second@mail.ru", "second", "Second"));
+        long commonUserId = createUser(makeValidUser("common@mail.ru", "common", "Common"));
+
+        mockMvc.perform(put("/users/{id}/friends/{friendId}", firstUserId, commonUserId))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/users/{id}/friends/{friendId}", secondUserId, commonUserId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/users/{id}/friends/common/{otherId}", firstUserId, secondUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(commonUserId));
+    }
+
+    @Test
+    void shouldRemoveFriendForBothUsers() throws Exception {
+        long firstUserId = createUser(makeValidUser("first@mail.ru", "first", "First"));
+        long secondUserId = createUser(makeValidUser("second@mail.ru", "second", "Second"));
+
+        mockMvc.perform(put("/users/{id}/friends/{friendId}", firstUserId, secondUserId))
+                .andExpect(status().isOk());
+        mockMvc.perform(delete("/users/{id}/friends/{friendId}", firstUserId, secondUserId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/users/{id}/friends", firstUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        mockMvc.perform(get("/users/{id}/friends", secondUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void shouldNotAddDuplicateFriend() throws Exception {
+        long firstUserId = createUser(makeValidUser("first@mail.ru", "first", "First"));
+        long secondUserId = createUser(makeValidUser("second@mail.ru", "second", "Second"));
+
+        mockMvc.perform(put("/users/{id}/friends/{friendId}", firstUserId, secondUserId))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/users/{id}/friends/{friendId}", firstUserId, secondUserId))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/users/{id}/friends", firstUserId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenFriendDoesNotExist() throws Exception {
+        long userId = createUser(makeValidUser("first@mail.ru", "first", "First"));
+
+        mockMvc.perform(put("/users/{id}/friends/{friendId}", userId, 999999L))
+                .andExpect(status().isNotFound());
+    }
+
+    private long createUser(User user) throws Exception {
+        String response = mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(user)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode jsonNode = objectMapper.readTree(response);
+        return jsonNode.get("id").asLong();
+    }
+
+    private User makeValidUser(String email, String login, String name) {
+        return new User(
+                email,
+                login,
+                name,
                 LocalDate.of(2000, 1, 1)
         );
     }

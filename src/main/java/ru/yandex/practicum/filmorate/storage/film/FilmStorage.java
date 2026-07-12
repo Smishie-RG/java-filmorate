@@ -13,4 +13,12 @@ public interface FilmStorage {
     Film create(Film film);
 
     Film update(Film film);
+
+    void delete(Long id);
+
+    void addLike(Long filmId, Long userId);
+
+    void removeLike(Long filmId, Long userId);
+
+    int getLikesCount(Long filmId);
 }
