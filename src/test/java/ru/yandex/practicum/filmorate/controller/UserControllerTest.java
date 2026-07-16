@@ -107,22 +107,53 @@ class UserControllerTest {
     }
 
     @Test
-    void shouldAddFriendForBothUsers() throws Exception {
-        long firstUserId = createUser(makeValidUser("first@mail.ru", "first", "First"));
-        long secondUserId = createUser(makeValidUser("second@mail.ru", "second", "Second"));
+    void shouldAddFriendOnlyForRequester() throws Exception {
+        long firstUserId = createUser(
+                makeValidUser(
+                        "first@mail.ru",
+                        "first",
+                        "First"
+                )
+        );
 
-        mockMvc.perform(put("/users/{id}/friends/{friendId}", firstUserId, secondUserId))
+        long secondUserId = createUser(
+                makeValidUser(
+                        "second@mail.ru",
+                        "second",
+                        "Second"
+                )
+        );
+
+        mockMvc.perform(
+                        put(
+                                "/users/{id}/friends/{friendId}",
+                                firstUserId,
+                                secondUserId
+                        )
+                )
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/users/{id}/friends", firstUserId))
+        mockMvc.perform(
+                        get(
+                                "/users/{id}/friends",
+                                firstUserId
+                        )
+                )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(secondUserId));
+                .andExpect(
+                        jsonPath("$[0].id")
+                                .value(secondUserId)
+                );
 
-        mockMvc.perform(get("/users/{id}/friends", secondUserId))
+        mockMvc.perform(
+                        get(
+                                "/users/{id}/friends",
+                                secondUserId
+                        )
+                )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(firstUserId));
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test
@@ -143,20 +174,56 @@ class UserControllerTest {
     }
 
     @Test
-    void shouldRemoveFriendForBothUsers() throws Exception {
-        long firstUserId = createUser(makeValidUser("first@mail.ru", "first", "First"));
-        long secondUserId = createUser(makeValidUser("second@mail.ru", "second", "Second"));
+    void shouldRemoveFriendOnlyForRequester() throws Exception {
+        long firstUserId = createUser(
+                makeValidUser(
+                        "first@mail.ru",
+                        "first",
+                        "First"
+                )
+        );
 
-        mockMvc.perform(put("/users/{id}/friends/{friendId}", firstUserId, secondUserId))
-                .andExpect(status().isOk());
-        mockMvc.perform(delete("/users/{id}/friends/{friendId}", firstUserId, secondUserId))
+        long secondUserId = createUser(
+                makeValidUser(
+                        "second@mail.ru",
+                        "second",
+                        "Second"
+                )
+        );
+
+        mockMvc.perform(
+                        put(
+                                "/users/{id}/friends/{friendId}",
+                                firstUserId,
+                                secondUserId
+                        )
+                )
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/users/{id}/friends", firstUserId))
+        mockMvc.perform(
+                        delete(
+                                "/users/{id}/friends/{friendId}",
+                                firstUserId,
+                                secondUserId
+                        )
+                )
+                .andExpect(status().isOk());
+
+        mockMvc.perform(
+                        get(
+                                "/users/{id}/friends",
+                                firstUserId
+                        )
+                )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
 
-        mockMvc.perform(get("/users/{id}/friends", secondUserId))
+        mockMvc.perform(
+                        get(
+                                "/users/{id}/friends",
+                                secondUserId
+                        )
+                )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
     }
