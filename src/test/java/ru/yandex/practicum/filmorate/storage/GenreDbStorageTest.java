@@ -13,7 +13,7 @@ import ru.yandex.practicum.filmorate.storage.genre.GenreStorage;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-
+//test
 @JdbcTest
 @AutoConfigureTestDatabase
 @Import(GenreDbStorage.class)
