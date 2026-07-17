@@ -14,7 +14,6 @@ import ru.yandex.practicum.filmorate.storage.mpa.MpaStorage;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.time.LocalDate;
-import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -107,43 +106,38 @@ public class FilmService {
             );
         }
 
-        return filmStorage.findAll()
-                .stream()
-                .sorted(
-                        Comparator
-                                .comparingInt(
-                                        (Film film) ->
-                                                filmStorage.getLikesCount(
-                                                        film.getId()
-                                                )
-                                )
-                                .reversed()
-                                .thenComparing(Film::getId)
-                )
-                .limit(count)
-                .toList();
+        return filmStorage.findPopular(count);
     }
 
     private void prepareReferenceData(Film film) {
+        prepareMpa(film);
+        prepareGenres(film);
+    }
+
+    private void prepareMpa(Film film) {
         Mpa mpa = film.getMpa();
 
-        if (mpa != null) {
-            if (mpa.getId() == null) {
-                throw new ValidationException(
-                        "Id рейтинга MPA должен быть указан"
-                );
-            }
+        if (mpa == null) {
+            return;
+        }
 
-            film.setMpa(
-                    mpaStorage.findById(mpa.getId())
-                            .orElseThrow(
-                                    () -> new NotFoundException(
-                                            "Рейтинг MPA не найден"
-                                    )
-                            )
+        if (mpa.getId() == null) {
+            throw new ValidationException(
+                    "Id рейтинга MPA должен быть указан"
             );
         }
 
+        film.setMpa(
+                mpaStorage.findById(mpa.getId())
+                        .orElseThrow(
+                                () -> new NotFoundException(
+                                        "Рейтинг MPA не найден"
+                                )
+                        )
+        );
+    }
+
+    private void prepareGenres(Film film) {
         Set<Genre> genres = film.getGenres();
 
         if (genres == null || genres.isEmpty()) {
@@ -151,37 +145,30 @@ public class FilmService {
             return;
         }
 
-        Set<Genre> resolvedGenres = new LinkedHashSet<>();
+        Set<Integer> genreIds = new LinkedHashSet<>();
 
-        genres.stream()
-                .filter(genre -> genre != null)
-                .sorted(
-                        Comparator.comparing(
-                                Genre::getId,
-                                Comparator.nullsLast(
-                                        Integer::compareTo
-                                )
-                        )
-                )
-                .forEach(genre -> {
-                    if (genre.getId() == null) {
-                        throw new ValidationException(
-                                "Id жанра должен быть указан"
-                        );
-                    }
+        for (Genre genre : genres) {
+            if (genre == null) {
+                continue;
+            }
 
-                    Genre storedGenre =
-                            genreStorage.findById(genre.getId())
-                                    .orElseThrow(
-                                            () -> new NotFoundException(
-                                                    "Жанр не найден"
-                                            )
-                                    );
+            if (genre.getId() == null) {
+                throw new ValidationException(
+                        "Id жанра должен быть указан"
+                );
+            }
 
-                    resolvedGenres.add(storedGenre);
-                });
+            genreIds.add(genre.getId());
+        }
 
-        film.setGenres(resolvedGenres);
+        List<Genre> storedGenres =
+                genreStorage.findByIds(genreIds);
+
+        if (storedGenres.size() != genreIds.size()) {
+            throw new NotFoundException("Жанр не найден");
+        }
+
+        film.setGenres(new LinkedHashSet<>(storedGenres));
     }
 
     private void ensureUserExists(Long userId) {

@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Import;
 import ru.yandex.practicum.filmorate.model.Genre;
 import ru.yandex.practicum.filmorate.storage.genre.GenreDbStorage;
 import ru.yandex.practicum.filmorate.storage.genre.GenreStorage;
+import java.util.Set;
 
 import java.util.List;
 
@@ -55,5 +56,14 @@ class GenreDbStorageTest {
 
         assertThat(genreStorage.findById(999))
                 .isEmpty();
+    }
+    @Test
+    void shouldFindGenresByIds() {
+        List<Genre> genres =
+                genreStorage.findByIds(Set.of(3, 1, 5));
+
+        assertThat(genres)
+                .extracting(Genre::getId)
+                .containsExactly(1, 3, 5);
     }
 }

@@ -62,19 +62,43 @@ public class InMemoryFilmStorage implements FilmStorage {
     @Override
     public void addLike(Long filmId, Long userId) {
         ensureFilmExists(filmId);
-        likes.computeIfAbsent(filmId, key -> ConcurrentHashMap.newKeySet()).add(userId);
+        likes.computeIfAbsent(
+                filmId,
+                key -> ConcurrentHashMap.newKeySet()
+        ).add(userId);
     }
 
     @Override
     public void removeLike(Long filmId, Long userId) {
         ensureFilmExists(filmId);
-        likes.computeIfAbsent(filmId, key -> ConcurrentHashMap.newKeySet()).remove(userId);
+        likes.computeIfAbsent(
+                filmId,
+                key -> ConcurrentHashMap.newKeySet()
+        ).remove(userId);
     }
 
     @Override
     public int getLikesCount(Long filmId) {
         ensureFilmExists(filmId);
         return likes.getOrDefault(filmId, Set.of()).size();
+    }
+
+    @Override
+    public List<Film> findPopular(int count) {
+        return films.values().stream()
+                .sorted(
+                        Comparator
+                                .comparingInt(
+                                        (Film film) -> likes.getOrDefault(
+                                                film.getId(),
+                                                Set.of()
+                                        ).size()
+                                )
+                                .reversed()
+                                .thenComparing(Film::getId)
+                )
+                .limit(count)
+                .toList();
     }
 
     private void ensureFilmExists(Long id) {

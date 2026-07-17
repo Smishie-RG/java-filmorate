@@ -37,8 +37,7 @@ class FilmDbStorageTest {
 
     @Test
     void shouldCreateAndFindFilmById() {
-        Film createdFilm =
-                filmStorage.create(createFilm());
+        Film createdFilm = filmStorage.create(createFilm());
 
         Optional<Film> filmOptional =
                 filmStorage.findById(createdFilm.getId());
@@ -63,14 +62,12 @@ class FilmDbStorageTest {
 
     @Test
     void shouldFindAllFilms() {
-        Film first =
-                filmStorage.create(createFilm());
+        Film first = filmStorage.create(createFilm());
 
         Film secondFilm = createFilm();
         secondFilm.setName("Inception");
 
-        Film second =
-                filmStorage.create(secondFilm);
+        Film second = filmStorage.create(secondFilm);
 
         List<Film> films = filmStorage.findAll();
 
@@ -84,8 +81,7 @@ class FilmDbStorageTest {
 
     @Test
     void shouldUpdateFilmWithMpaAndGenres() {
-        Film film =
-                filmStorage.create(createFilm());
+        Film film = filmStorage.create(createFilm());
 
         film.setName("Updated");
         film.setMpa(new Mpa(2, null));
@@ -95,8 +91,7 @@ class FilmDbStorageTest {
                 )
         );
 
-        Film updatedFilm =
-                filmStorage.update(film);
+        Film updatedFilm = filmStorage.update(film);
 
         assertThat(updatedFilm.getName())
                 .isEqualTo("Updated");
@@ -114,8 +109,7 @@ class FilmDbStorageTest {
 
     @Test
     void shouldDeleteFilm() {
-        Film film =
-                filmStorage.create(createFilm());
+        Film film = filmStorage.create(createFilm());
 
         filmStorage.delete(film.getId());
 
@@ -129,11 +123,8 @@ class FilmDbStorageTest {
 
     @Test
     void shouldAddLikeOnlyOnceAndCountLikes() {
-        Film film =
-                filmStorage.create(createFilm());
-
-        User user =
-                userStorage.create(createUser());
+        Film film = filmStorage.create(createFilm());
+        User user = userStorage.create(createUser());
 
         filmStorage.addLike(
                 film.getId(),
@@ -152,11 +143,8 @@ class FilmDbStorageTest {
 
     @Test
     void shouldRemoveLike() {
-        Film film =
-                filmStorage.create(createFilm());
-
-        User user =
-                userStorage.create(createUser());
+        Film film = filmStorage.create(createFilm());
+        User user = userStorage.create(createUser());
 
         filmStorage.addLike(
                 film.getId(),
@@ -171,6 +159,51 @@ class FilmDbStorageTest {
         assertThat(
                 filmStorage.getLikesCount(film.getId())
         ).isZero();
+    }
+
+    @Test
+    void shouldFindPopularFilms() {
+        Film firstFilm = createFilm();
+        firstFilm.setName("First");
+        firstFilm = filmStorage.create(firstFilm);
+
+        Film secondFilm = createFilm();
+        secondFilm.setName("Second");
+        secondFilm = filmStorage.create(secondFilm);
+
+        User firstUser = userStorage.create(
+                createUser("first@mail.ru", "first")
+        );
+
+        User secondUser = userStorage.create(
+                createUser("second@mail.ru", "second")
+        );
+
+        filmStorage.addLike(
+                firstFilm.getId(),
+                firstUser.getId()
+        );
+
+        filmStorage.addLike(
+                secondFilm.getId(),
+                firstUser.getId()
+        );
+
+        filmStorage.addLike(
+                secondFilm.getId(),
+                secondUser.getId()
+        );
+
+        List<Film> popularFilms =
+                filmStorage.findPopular(1);
+
+        assertThat(popularFilms)
+                .extracting(Film::getId)
+                .containsExactly(secondFilm.getId());
+
+        assertThat(popularFilms.get(0).getGenres())
+                .extracting(Genre::getId)
+                .containsExactly(1, 2);
     }
 
     private Film createFilm() {
@@ -196,10 +229,14 @@ class FilmDbStorageTest {
     }
 
     private User createUser() {
+        return createUser("user@mail.ru", "user");
+    }
+
+    private User createUser(String email, String login) {
         return new User(
-                "user@mail.ru",
-                "user",
-                "User",
+                email,
+                login,
+                login,
                 LocalDate.of(2000, 1, 1)
         );
     }
