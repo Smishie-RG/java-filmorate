@@ -9,12 +9,12 @@ import org.springframework.context.annotation.Import;
 import ru.yandex.practicum.filmorate.model.Genre;
 import ru.yandex.practicum.filmorate.storage.genre.GenreDbStorage;
 import ru.yandex.practicum.filmorate.storage.genre.GenreStorage;
-import java.util.Set;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-//test
+
 @JdbcTest
 @AutoConfigureTestDatabase
 @Import(GenreDbStorage.class)
@@ -25,8 +25,7 @@ class GenreDbStorageTest {
 
     @Test
     void shouldFindAllGenres() {
-        List<Genre> genres =
-                genreStorage.findAll();
+        List<Genre> genres = genreStorage.findAll();
 
         assertThat(genres).hasSize(6);
 
@@ -57,6 +56,7 @@ class GenreDbStorageTest {
         assertThat(genreStorage.findById(999))
                 .isEmpty();
     }
+
     @Test
     void shouldFindGenresByIds() {
         List<Genre> genres =
